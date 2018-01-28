@@ -1,0 +1,15 @@
+.babelrc
+.eslintcache
+.eslintrc
+.flowconfig
+.idea
+.nyc_output
+.travis.yml
+commitlint.config.js
+coverage
+flow-typed
+node_modules
+renovate.json
+solano.yml
+test
+

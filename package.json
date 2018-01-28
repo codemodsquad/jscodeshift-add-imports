@@ -1,0 +1,70 @@
+{
+  "name": "agnostic-library-skeleton",
+  "version": "1.0.0",
+  "description": "my skeleton for transpiler-free JS packages",
+  "main": "index.js",
+  "author": "Andy Edwards",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint *.js test --cache",
+    "lint:fix": "eslint --fix *.js test --cache",
+    "lint:watch": "esw --watch *.js test --cache",
+    "flow": "flow",
+    "flow:coverage": "for file in *.js test/**.js; do echo $file; flow coverage $file; done",
+    "flow:watch": "flow-watch -e js,js.flow,flowconfig --ignore lib/ --ignore node_modules/ --watch .flowconfig --watch *.js --watch test/",
+    "test": "NODE_ENV=production BABEL_ENV=test nyc --reporter=lcov --reporter=text mocha $npm_package_config_mocha",
+    "test:watch": "mocha --watch $npm_package_config_mocha",
+    "codecov": "nyc report --reporter=text-lcov > coverage.lcov; codecov",
+    "commitmsg": "commitlint -e $GIT_PARAMS",
+    "precommit": "npm run lint && flow",
+    "prepush": "npm test",
+    "prepublishOnly": "npm run lint && flow && npm test",
+    "open:coverage": "open coverage/lcov-report/index.html",
+    "semantic-release": "semantic-release",
+    "travis-deploy-once": "travis-deploy-once"
+  },
+  "config": {
+    "mocha": "./test/**/*.js",
+    "commitizen": {
+      "path": "cz-conventional-changelog"
+    }
+  },
+  "nyc": {
+    "include": [
+      "*.js"
+    ],
+    "exclude": [
+      "commitlint.config.js"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jedwards1211/agnostic-library-skeleton.git"
+  },
+  "keywords": [
+    "skeleton"
+  ],
+  "bugs": {
+    "url": "https://github.com/jedwards1211/agnostic-library-skeleton/issues"
+  },
+  "homepage": "https://github.com/jedwards1211/agnostic-library-skeleton#readme",
+  "devDependencies": {
+    "@commitlint/cli": "^6.0.2",
+    "@commitlint/config-conventional": "^6.0.2",
+    "@jedwards1211/eslint-config": "^2.0.0",
+    "@jedwards1211/eslint-config-flow": "^1.0.0",
+    "chai": "^4.1.2",
+    "codecov": "^3.0.0",
+    "eslint": "^4.16.0",
+    "eslint-plugin-flowtype": "^2.42.0",
+    "eslint-watch": "^3.1.3",
+    "flow-bin": "^0.64.0",
+    "flow-watch": "^1.1.1",
+    "husky": "^0.14.3",
+    "istanbul": "^0.4.5",
+    "mocha": "^5.0.0",
+    "nyc": "^11.4.1",
+    "semantic-release": "^12.4.1",
+    "travis-deploy-once": "^4.3.3"
+  }
+}
