@@ -1,5 +1,5 @@
 {
-  "name": "agnostic-library-skeleton",
+  "name": "untranspiled-js-library-skeleton",
   "version": "1.0.0",
   "description": "my skeleton for transpiler-free JS packages",
   "main": "index.js",
@@ -39,15 +39,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jedwards1211/agnostic-library-skeleton.git"
+    "url": "https://github.com/jedwards1211/untranspiled-js-library-skeleton.git"
   },
   "keywords": [
     "skeleton"
   ],
   "bugs": {
-    "url": "https://github.com/jedwards1211/agnostic-library-skeleton/issues"
+    "url": "https://github.com/jedwards1211/untranspiled-js-library-skeleton/issues"
   },
-  "homepage": "https://github.com/jedwards1211/agnostic-library-skeleton#readme",
+  "homepage": "https://github.com/jedwards1211/untranspiled-js-library-skeleton#readme",
   "devDependencies": {
     "@commitlint/cli": "^6.0.2",
     "@commitlint/config-conventional": "^6.0.2",
