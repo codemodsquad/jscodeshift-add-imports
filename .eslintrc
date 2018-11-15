@@ -1,6 +1,7 @@
 {
   "extends": [
-    "@jedwards1211/eslint-config", "@jedwards1211/eslint-config-flow"
+    "@jedwards1211/eslint-config", "@jedwards1211/eslint-config-flow",
+    "eslint-config-prettier"
   ],
   "env": {
     "commonjs": true
