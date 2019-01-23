@@ -21,6 +21,9 @@ jobs:
           key: v1-yarn-packages-{{ checksum "yarn.lock" }}
           paths:
             - ~/.cache/yarn
+      - build:
+          name: build
+          command: yarn prepublishOnly
       - run:
           name: release
           command: yarn run semantic-release || true
