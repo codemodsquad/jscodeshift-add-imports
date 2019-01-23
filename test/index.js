@@ -1,5 +1,3 @@
-// @flow
-
 require('..')
 
 describe('test setup', function() {

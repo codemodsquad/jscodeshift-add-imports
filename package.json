@@ -11,21 +11,18 @@
     "lint:watch": "esw --watch *.js test --cache",
     "prettier": "prettier --write src/**/*.js test/**/*.js",
     "prettier:check": "prettier --list-different src/**/*.js test/**/*.js",
-    "flow": "flow",
-    "flow:coverage": "for file in *.js test/**.js; do echo $file; flow coverage $file; done",
-    "flow:watch": "flow-watch -e js,js.flow,flowconfig --ignore lib/ --ignore node_modules/ --watch .flowconfig --watch *.js --watch test/",
-    "test": "cross-env NODE_ENV=production BABEL_ENV=test nyc --reporter=lcov --reporter=text mocha $npm_package_config_mocha",
+    "test": "cross-env NODE_ENV=production nyc --reporter=lcov --reporter=text mocha $npm_package_config_mocha",
     "test:watch": "mocha --watch $npm_package_config_mocha",
+    "test:debug": "mocha --inspect-brk $npm_package_config_mocha",
     "codecov": "nyc report --reporter=text-lcov > coverage.lcov; codecov",
-    "prepublishOnly": "npm run lint && flow && npm test",
+    "prepublishOnly": "npm run lint && npm test",
     "open:coverage": "open coverage/lcov-report/index.html",
-    "semantic-release": "semantic-release",
-    "travis-deploy-once": "travis-deploy-once"
+    "semantic-release": "semantic-release"
   },
   "husky": {
     "hooks": {
       "commit-msg": "commitlint -e $GIT_PARAMS",
-      "pre-commit": "lint-staged && npm run lint && flow",
+      "pre-commit": "lint-staged && npm run lint",
       "pre-push": "npm test"
     }
   },
@@ -36,7 +33,7 @@
     ]
   },
   "config": {
-    "mocha": "./test/**/*.js",
+    "mocha": "./test/configure.js ./test/**/*.js",
     "commitizen": {
       "path": "cz-conventional-changelog"
     }
@@ -65,16 +62,12 @@
     "@commitlint/config-conventional": "^6.0.2",
     "@jedwards1211/commitlint-config": "^1.0.0",
     "@jedwards1211/eslint-config": "^2.0.0",
-    "@jedwards1211/eslint-config-flow": "^1.0.0",
     "chai": "^4.1.2",
     "codecov": "^3.0.0",
     "cross-env": "^5.2.0",
     "eslint": "^4.16.0",
     "eslint-config-prettier": "^3.3.0",
-    "eslint-plugin-flowtype": "^2.42.0",
     "eslint-watch": "^3.1.3",
-    "flow-bin": "^0.64.0",
-    "flow-watch": "^1.1.1",
     "husky": "^1.1.4",
     "istanbul": "^0.4.5",
     "lint-staged": "^8.0.4",
@@ -82,7 +75,6 @@
     "nyc": "^11.4.1",
     "prettier": "^1.15.1",
     "prettier-eslint": "^8.8.2",
-    "semantic-release": "^12.4.1",
-    "travis-deploy-once": "^4.3.3"
+    "semantic-release": "^12.4.1"
   }
 }

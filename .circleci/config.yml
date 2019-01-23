@@ -1,0 +1,26 @@
+version: 2
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: circleci/node:10
+    steps:
+      - checkout
+
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - v1-yarn-packages-{{ checksum "yarn.lock" }}
+
+      - run:
+          name: yarn
+          command: yarn --ignore-scripts --frozen-lockfile
+
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: v1-yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
+      - run:
+          name: release
+          command: yarn run semantic-release || true
