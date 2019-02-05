@@ -1,6 +1,6 @@
 {
   "name": "untranspiled-js-library-skeleton",
-  "version": "1.0.0",
+  "version": "0.0.0-development",
   "description": "my skeleton for transpiler-free JS packages",
   "main": "index.js",
   "author": "Andy Edwards",
@@ -33,10 +33,20 @@
     ]
   },
   "config": {
-    "mocha": "./test/configure.js ./test/**/*.js",
+    "mocha": "test/configure.js test/**/*.js",
     "commitizen": {
       "path": "cz-conventional-changelog"
     }
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true,
+    "trailingComma": "es5"
+  },
+  "commitlint": {
+    "extends": [
+      "@jedwards1211/commitlint-config"
+    ]
   },
   "nyc": {
     "include": [
@@ -75,6 +85,24 @@
     "nyc": "^11.4.1",
     "prettier": "^1.15.1",
     "prettier-eslint": "^8.8.2",
-    "semantic-release": "^12.4.1"
+    "semantic-release": "^15.13.3"
+  },
+  "renovate": {
+    "extends": [
+      ":separateMajorReleases",
+      ":combinePatchMinorReleases",
+      ":ignoreUnstable",
+      ":prImmediately",
+      ":renovatePrefix",
+      ":updateNotScheduled",
+      ":preserveSemverRanges",
+      ":semanticPrefixFix",
+      ":automergeDisabled",
+      "group:monorepos"
+    ],
+    "automerge": true,
+    "major": {
+      "automerge": false
+    }
   }
 }
