@@ -6,29 +6,25 @@
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 [![npm version](https://badge.fury.io/js/untranspiled-js-library-skeleton.svg)](https://badge.fury.io/js/untranspiled-js-library-skeleton)
 
-This is my personal skeleton for creating an untranspiled JS library npm package.  You are welcome to use it.
+This is my personal skeleton for creating an untranspiled JS library npm package. You are welcome to use it.
 
 ## Quick start
 
 ```sh
-npm i -g howardroark/pollinate
-pollinate https://github.com/jedwards1211/untranspiled-js-library-skeleton.git --keep-history --name <package name> --author <your name> --organization <github organization> --description <package description>
-cd <package name>
-npm i
+npx 0-60 clone https://github.com/jedwards1211/untranspiled-js-library-skeleton.git
 ```
 
 ## Tools used
 
-* mocha
-* chai
-* istanbul
-* nyc
-* eslint
-* eslint-watch
-* flow
-* flow-watch
-* husky
-* semantic-release
-* Travis CI
-* Coveralls
-
+- mocha
+- chai
+- istanbul
+- nyc
+- eslint
+- eslint-watch
+- flow
+- flow-watch
+- husky
+- semantic-release
+- Travis CI
+- Coveralls
