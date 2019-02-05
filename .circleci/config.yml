@@ -25,5 +25,8 @@ jobs:
           name: build
           command: yarn prepublishOnly
       - run:
+          name: upload test coverage
+          command: yarn codecov || true
+      - run:
           name: release
           command: yarn run semantic-release || true
