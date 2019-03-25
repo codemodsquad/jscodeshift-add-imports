@@ -3,6 +3,7 @@
 !**/*.js.flow
 !/*.md
 !yarn.lock
+/node_modules
 /test
 /coverage
 __tests__
