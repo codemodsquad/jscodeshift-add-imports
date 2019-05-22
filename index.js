@@ -2,17 +2,18 @@ const j = require('jscodeshift').withParser('babylon')
 const findImports = require('jscodeshift-find-imports')
 const traverse = require('@babel/traverse').default
 
+const firstPath = c => c.at(0).paths()[0]
+const lastPath = c => c.at(-1).paths()[0]
+const firstNode = c => c.at(0).nodes()[0]
+const lastNode = c => c.at(-1).nodes()[0]
+
 module.exports = function addImports(root, _statements) {
   const found = findImports(root, _statements)
 
   let babelScope
-  let astTypeScope = root
-    .find(j.Program)
-    .at(0)
-    .paths()[0]
-    .scope.getGlobalScope()
+  let astTypeScope = firstPath(root.find(j.Program)).scope.getGlobalScope()
   try {
-    traverse(root.at(0).nodes()[0], {
+    traverse(firstNode(root), {
       Program(path) {
         babelScope = path.scope
       },
@@ -42,7 +43,7 @@ module.exports = function addImports(root, _statements) {
     if (statement.type === 'ImportDeclaration') {
       const { importKind } = statement
       const source = { value: statement.source.value }
-      let existing = root.find(j.ImportDeclaration, { importKind, source })
+      let existing = root.find(j.ImportDeclaration, { source })
       for (let specifier of statement.specifiers) {
         if (found[specifier.local.name]) continue
         const name = preventNameConflict(specifier.local.name)
@@ -57,8 +58,19 @@ module.exports = function addImports(root, _statements) {
           specifier.local = j.identifier(name)
         }
         if (existing.size()) {
-          const last = existing.paths()[existing.size() - 1].node
-          last.specifiers.push(specifier)
+          const decl = lastNode(existing)
+          const specifierImportKind =
+            specifier.importKind || importKind || 'value'
+          if ((decl.importKind || 'value') !== specifierImportKind) {
+            if (decl.importKind.startsWith('type')) {
+              for (let existingSpecifier of decl.specifiers) {
+                existingSpecifier.importKind = decl.importKind
+              }
+              decl.importKind = null
+            }
+            specifier.importKind = specifierImportKind
+          }
+          decl.specifiers.push(specifier)
         } else {
           const newDeclaration = j.importDeclaration(
             [specifier],
@@ -67,13 +79,11 @@ module.exports = function addImports(root, _statements) {
           )
           const allImports = root.find(j.ImportDeclaration)
           if (allImports.size()) {
-            allImports
-              .paths()
-              [allImports.size() - 1].insertAfter(newDeclaration)
+            lastPath(allImports).insertAfter(newDeclaration)
           } else {
             insertProgramStatement(root, newDeclaration)
           }
-          existing = root.find(j.ImportDeclaration, { importKind, source })
+          existing = root.find(j.ImportDeclaration, { source })
         }
       }
     } else if (statement.type === 'VariableDeclaration') {
@@ -102,17 +112,14 @@ module.exports = function addImports(root, _statements) {
               )
             }
             if (existing.size()) {
-              const last = existing.paths()[existing.size() - 1].node
-              last.id.properties.push(prop)
+              lastNode(existing).id.properties.push(prop)
             } else {
               const newDeclaration = j.variableDeclaration('const', [
                 j.variableDeclarator(j.objectPattern([prop]), declarator.init),
               ])
               const allImports = root.find(j.ImportDeclaration)
               if (allImports.size()) {
-                allImports
-                  .paths()
-                  [allImports.size() - 1].insertAfter(newDeclaration)
+                lastPath(allImports).insertAfter(newDeclaration)
               } else {
                 insertProgramStatement(root, newDeclaration)
               }
@@ -128,9 +135,7 @@ module.exports = function addImports(root, _statements) {
             ])
             const allImports = root.find(j.ImportDeclaration)
             if (allImports.size()) {
-              allImports
-                .paths()
-                [allImports.size() - 1].insertAfter(newDeclaration)
+              lastPath(allImports).insertAfter(newDeclaration)
             } else {
               insertProgramStatement(root, newDeclaration)
             }

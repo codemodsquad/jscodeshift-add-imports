@@ -58,6 +58,15 @@ const {
   foo: qux
 } = require('baz');`)
     })
+    it(`merges destructuring`, function() {
+      const code = `const {foo} = require('bar')`
+      const root = j(code)
+      addImports(root, statement`const {bar} = require('bar')`)
+      expect(root.toSource()).to.equal(`const {
+  foo,
+  bar
+} = require('bar')`)
+    })
     it(`leaves existing non-default requires without alias untouched`, function() {
       const code = `const {foo} = require('baz')`
       const root = j(code)
@@ -221,8 +230,19 @@ import {foo as bar} from 'baz'
 import type { glab as qlob } from "qlob";`
       const root = j(code)
       addImports(root, statement`import type {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(`${code}
-import type { foo as qux } from "baz";`)
+      expect(root.toSource()).to.equal(`
+import { foo as bar, type foo as qux } from 'baz';
+import type { glab as qlob } from "qlob";`)
+    })
+    it(`converts import type {} to import {type} if necessary`, function() {
+      const code = `
+import type {foo as bar} from 'baz'
+`
+      const root = j(code)
+      addImports(root, statement`import {foo as qux} from 'baz'`)
+      expect(root.toSource()).to.equal(`
+import { type foo as bar, foo as qux } from 'baz';
+`)
     })
     it(`leaves existing non-default import specifiers without aliases untouched`, function() {
       const code = `import {foo} from 'baz'`
@@ -370,9 +390,8 @@ import baz from 'baz'
         qux: 'qux',
       })
       expect(root.toSource()).to.equal(`// @flow
-import {foo, type bar} from 'foo'
+import { foo, type bar, type baz as baz1 } from 'foo';
 import baz from 'baz'
-import type { baz as baz1 } from "foo";
 import blah, { type qux } from "qux";
 `)
     })
