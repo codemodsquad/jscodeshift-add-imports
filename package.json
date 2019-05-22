@@ -1,7 +1,7 @@
 {
-  "name": "untranspiled-js-library-skeleton",
+  "name": "jscodeshift-add-imports",
   "version": "0.0.0-development",
-  "description": "my skeleton for transpiler-free JS packages",
+  "description": "add imports/requires if not already present with jscodeshift",
   "main": "index.js",
   "author": "Andy Edwards",
   "license": "MIT",
@@ -58,15 +58,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jedwards1211/untranspiled-js-library-skeleton.git"
+    "url": "https://github.com/jedwards1211/jscodeshift-add-imports.git"
   },
   "keywords": [
-    "skeleton"
+    "jscodeshift"
   ],
   "bugs": {
-    "url": "https://github.com/jedwards1211/untranspiled-js-library-skeleton/issues"
+    "url": "https://github.com/jedwards1211/jscodeshift-add-imports/issues"
   },
-  "homepage": "https://github.com/jedwards1211/untranspiled-js-library-skeleton#readme",
+  "homepage": "https://github.com/jedwards1211/jscodeshift-add-imports#readme",
   "devDependencies": {
     "@commitlint/cli": "^6.0.2",
     "@commitlint/config-conventional": "^6.0.2",
@@ -104,5 +104,9 @@
     "major": {
       "automerge": false
     }
+  },
+  "dependencies": {
+    "@babel/traverse": "^7.4.5",
+    "jscodeshift-find-imports": "^1.0.2"
   }
 }
