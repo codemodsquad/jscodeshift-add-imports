@@ -395,5 +395,16 @@ import baz from 'baz'
 import blah, { type qux } from "qux";
 `)
     })
+    describe(`bugs`, function() {
+      it(`import type { foo, type bar }`, function() {
+        const code = `// @flow
+import type { foo } from 'foo'`
+        const root = j(code)
+        const result = addImports(root, statement`import {type bar} from 'foo'`)
+        expect(result).to.deep.equal({ bar: 'bar' })
+        expect(root.toSource()).to.equal(`// @flow
+import type { foo, bar } from 'foo';`)
+      })
+    })
   })
 })

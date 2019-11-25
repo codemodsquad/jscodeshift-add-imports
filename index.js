@@ -69,6 +69,11 @@ module.exports = function addImports(root, _statements) {
               decl.importKind = null
             }
             specifier.importKind = specifierImportKind
+          } else if (
+            decl.importKind !== 'value' &&
+            decl.importKind === specifierImportKind
+          ) {
+            specifier.importKind = null
           }
           decl.specifiers.push(specifier)
         } else {
