@@ -405,6 +405,27 @@ import type { foo } from 'foo'`
         expect(root.toSource()).to.equal(`// @flow
 import type { foo, bar } from 'foo';`)
       })
+      it(`import typeof { foo, type bar }`, function() {
+        const code = `// @flow
+import typeof { foo } from 'foo'`
+        const root = j(code)
+        const result = addImports(root, statement`import {type bar} from 'foo'`)
+        expect(result).to.deep.equal({ bar: 'bar' })
+        expect(root.toSource()).to.equal(`// @flow
+import { typeof foo, type bar } from 'foo';`)
+      })
+      it(`import type { foo, typeof bar }`, function() {
+        const code = `// @flow
+import type { foo } from 'foo'`
+        const root = j(code)
+        const result = addImports(
+          root,
+          statement`import typeof {bar} from 'foo'`
+        )
+        expect(result).to.deep.equal({ bar: 'bar' })
+        expect(root.toSource()).to.equal(`// @flow
+import { type foo, typeof bar } from 'foo';`)
+      })
     })
   })
 })
