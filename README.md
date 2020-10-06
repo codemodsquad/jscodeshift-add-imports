@@ -55,7 +55,7 @@ Return value:
 }
 ```
 
-# `addImports(root, statments)`
+# `addImports(root, statements)`
 
 ## Arguments
 
