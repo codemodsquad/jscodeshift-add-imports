@@ -9,6 +9,9 @@ const lastNode = c => c.at(-1).nodes()[0]
 
 module.exports = function addImports(root, _statements) {
   const found = findImports(root, _statements)
+  for (const name in found) {
+    found[name] = found[name].name
+  }
 
   let babelScope
   let astTypeScope = firstPath(root.find(j.Program)).scope.getGlobalScope()
