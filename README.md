@@ -57,6 +57,18 @@ Return value:
 }
 ```
 
+# Compatibility
+
+Currently tested on `jscodeshift@0.11.0` with the following parsers:
+
+- `babylon`
+- `ts`
+
+There are currently issues with the `babel` and `flow` parsers.
+
+It won't likely work with other custom parsers unless they output nodes in the same format as
+Babel for import declarations, variable declarations, require calls, and object patterns.
+
 # `addImports(root, statments)`
 
 ## Arguments
