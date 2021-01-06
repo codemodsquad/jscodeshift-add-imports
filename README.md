@@ -19,6 +19,8 @@ npm install --save jscodeshift-add-imports
 const j = require('jscodeshift')
 const addImports = require('jscodeshift-add-imports')
 
+const { statement } = j.template
+
 const code = `
 // @flow
 import {foo, type bar} from 'foo'
