@@ -1,431 +1,545 @@
 const { describe, it } = require('mocha')
 const { expect } = require('chai')
 const jscodeshift = require('jscodeshift')
+const prettier = require('prettier')
 
 const addImports = require('..')
 
-const j = jscodeshift.withParser('babylon')
-const { statement } = j.template
+for (const parser of ['babylon']) {
+  describe(`with parser: ${parser}`, function() {
+    const j = jscodeshift.withParser(parser)
+    const { statement } = j.template
 
-describe(`addImports`, function() {
-  describe(`for require statement`, function() {
-    it(`throws if statement contains a non-require declarator`, function() {
-      const code = `import Baz from 'baz'`
-      expect(() =>
+    const format = code =>
+      prettier
+        .format(code, {
+          parser: parser === 'ts' ? 'typescript' : 'babel',
+        })
+        .replace(/\n{2,}/gm, '\n')
+
+    function testCase({
+      code,
+      add: importsToAdd,
+      expectedError,
+      expectedCode,
+      expectedReturn,
+    }) {
+      const root = j(code)
+      const doAdd = () =>
         addImports(
-          j(code),
-          statement`const foo = require('baz'), bar = invalid(true)`
-        )
-      ).to.throw(Error)
-    })
-    it(`leaves existing non-default imports with alias untouched`, function() {
-      const code = `import {foo as bar} from 'baz'`
-      const root = j(code)
-      const result = addImports(
-        root,
-        statement`const {foo: qux} = require('baz')`
-      )
-      expect(result).to.deep.equal({ qux: 'bar' })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default imports with alias`, function() {
-      const code = `import {blah as bar} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`const {foo: qux} = require('baz')`)
-      expect(root.toSource()).to.equal(`${code}
-
-const {
-  foo: qux
-} = require('baz');`)
-    })
-    it(`leaves existing non-default imports without alias untouched`, function() {
-      const code = `import {foo} from 'baz'`
-      const root = j(code)
-      const result = addImports(
-        root,
-        statement`const {foo: qux} = require('baz')`
-      )
-      expect(result).to.deep.equal({ qux: 'foo' })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default imports without alias`, function() {
-      const code = `import {bar} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`const {foo: qux} = require('baz')`)
-      expect(root.toSource()).to.equal(`${code}
-
-const {
-  foo: qux
-} = require('baz');`)
-    })
-    it(`merges destructuring`, function() {
-      const code = `const {foo} = require('bar')`
-      const root = j(code)
-      addImports(root, statement`const {bar} = require('bar')`)
-      expect(root.toSource()).to.equal(`const {
-  foo,
-  bar
-} = require('bar')`)
-    })
-    it(`leaves existing non-default requires without alias untouched`, function() {
-      const code = `const {foo} = require('baz')`
-      const root = j(code)
-      const result = addImports(
-        root,
-        statement`const {foo: qux} = require('baz')`
-      )
-      expect(result).to.deep.equal({ qux: 'foo' })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default requires without alias`, function() {
-      const code = `const {bar} = require('baz')`
-      const root = j(code)
-      const result = addImports(
-        root,
-        statement`const {foo: qux} = require('baz')`
-      )
-      expect(result).to.deep.equal({ qux: 'qux' })
-      expect(root.toSource()).to.equal(`const {
-  bar,
-  foo: qux
-} = require('baz')`)
-    })
-    it(`leaves existing default requires untouched `, function() {
-      const code = `const foo = require('baz')`
-      const root = j(code)
-      const result = addImports(root, statement`const qux = require('baz')`)
-      expect(result).to.deep.equal({ qux: 'foo' })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing default requires`, function() {
-      const code = `const foo = require('foo')`
-      const root = j(code)
-      addImports(root, statement`const qux = require('baz')`)
-      expect(root.toSource()).to.equal(`const qux = require('baz');
-${code}`)
-    })
-    it(`avoids name conflicts`, function() {
-      const code = `const foo = require('foo')`
-      const root = j(code)
-      const result = addImports(root, statement`const foo = require('bar')`)
-      expect(result).to.deep.equal({ foo: 'foo1' })
-      expect(root.toSource()).to.equal(`const foo1 = require('bar');
-${code}`)
-    })
-    it(`avoids name conflicts with ObjectPattern`, function() {
-      const code = `const {foo} = require('foo')`
-      const root = j(code)
-      const result = addImports(root, statement`const {foo} = require('bar')`)
-      expect(result).to.deep.equal({ foo: 'foo1' })
-      expect(root.toSource()).to.equal(`const {
-  foo: foo1
-} = require('bar');
-
-${code}`)
-    })
-    it(`adds separate declaration if init is MemberExpression`, function() {
-      const code = `const foo = require('foo').default`
-      const root = j(code)
-      const result = addImports(root, statement`const {bar} = require('foo')`)
-      expect(result).to.deep.equal({ bar: 'bar' })
-      expect(root.toSource()).to.equal(`const {
-  bar
-} = require('foo');
-
-${code}`)
-    })
-  })
-  describe(`for import statement`, function() {
-    it(`leaves existing default imports untouched`, function() {
-      const code = `import Baz from 'baz'`
-      const root = j(code)
-      const result = addImports(root, statement`import Foo from 'baz'`)
-      expect(result).to.deep.equal({ Foo: 'Baz' })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing default imports`, function() {
-      const code = `import {baz} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import Foo from 'baz'`)
-      expect(root.toSource()).to.equal(`import Foo, { baz } from 'baz';`)
-    })
-    it(`adds missing default imports case 2`, function() {
-      const code = `import bar from 'bar'`
-      const root = j(code)
-      addImports(root, statement`import Foo from 'baz'`)
-      expect(root.toSource()).to.equal(`${code}
-import Foo from "baz";`)
-    })
-    it(`leaves existing funky default imports untouched`, function() {
-      const code = `import {default as Baz} from 'baz'`
-      const root = j(code)
-      const result = addImports(
-        root,
-        statement`import {default as Foo} from 'baz'`
-      )
-      expect(result).to.deep.equal({ Foo: 'Baz' })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing funky default imports`, function() {
-      const code = `import {baz} from 'baz'`
-      const root = j(code)
-      const result = addImports(
-        root,
-        statement`import {default as Foo} from 'baz'`
-      )
-      expect(result).to.deep.equal({ Foo: 'Foo' })
-      expect(root.toSource()).to.equal(
-        `import { baz, default as Foo } from 'baz';`
-      )
-    })
-    it(`adds missing funky default imports case 2`, function() {
-      const code = `import {bar} from 'bar'`
-      const root = j(code)
-      addImports(root, statement`import {default as Foo} from 'baz'`)
-      expect(root.toSource()).to.equal(`${code}
-import { default as Foo } from "baz";`)
-    })
-    it(`leaves existing non-default import specifiers with aliases untouched`, function() {
-      const code = `import {foo as bar} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default import specifiers with aliases`, function() {
-      const code = `import {qlob as bar} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(
-        `import { qlob as bar, foo as qux } from 'baz';`
-      )
-    })
-    it(`adds missing non-default import specifiers with aliases case 2`, function() {
-      const code = `import {qlob as bar} from 'bar'`
-      const root = j(code)
-      addImports(root, statement`import {foo as qux} from 'foo'`)
-      expect(root.toSource()).to.equal(`${code}
-import { foo as qux } from "foo";`)
-    })
-    it(`leaves existing non-default import type specifiers with aliases untouched`, function() {
-      const code = `
-import {foo as bar} from 'baz'
-import type {foo as qlob} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import type {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default import type specifiers with aliases`, function() {
-      const code = `
-import {foo as bar} from 'baz'
-import type {glab as qlob} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import type {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(`
-import {foo as bar} from 'baz'
-import type { glab as qlob, foo as qux } from 'baz';`)
-    })
-    it(`adds missing non-default import type specifiers with aliases case 2`, function() {
-      const code = `
-import {foo as bar} from 'baz'
-import type { glab as qlob } from "qlob";`
-      const root = j(code)
-      addImports(root, statement`import type {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(`
-import { foo as bar, type foo as qux } from 'baz';
-import type { glab as qlob } from "qlob";`)
-    })
-    it(`converts import type {} to import {type} if necessary`, function() {
-      const code = `
-import type {foo as bar} from 'baz'
-`
-      const root = j(code)
-      addImports(root, statement`import {foo as qux} from 'baz'`)
-      expect(root.toSource()).to.equal(`
-import { type foo as bar, foo as qux } from 'baz';
-`)
-    })
-    it(`leaves existing non-default import specifiers without aliases untouched`, function() {
-      const code = `import {foo} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import {foo} from 'baz'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default import specifiers without aliases`, function() {
-      const code = `import {baz} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import {foo} from 'baz'`)
-      expect(root.toSource()).to.equal(`import { baz, foo } from 'baz';`)
-    })
-    it(`adds missing non-default import specifiers without aliases case 2`, function() {
-      const code = `import {baz} from 'baz'`
-      const root = j(code)
-      addImports(root, statement`import {foo} from 'foo'`)
-      expect(root.toSource()).to.equal(`${code}
-import { foo } from "foo";`)
-    })
-    it(`leaves existing non-default require specifiers with aliases untouched`, function() {
-      const code = `const {foo: bar} = require('baz')`
-      const root = j(code)
-      addImports(root, statement`import {foo} from 'baz'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing non-default require specifiers with aliases`, function() {
-      const code = `const {bar} = require('baz')`
-      const root = j(code)
-      addImports(root, statement`import {foo} from 'baz'`)
-      expect(root.toSource()).to.equal(`import { foo } from "baz";
-${code}`)
-    })
-    it(`leaves existing namespace imports untouched`, function() {
-      const code = `import * as React from 'react'`
-      const root = j(code)
-      addImports(root, statement`import * as R from 'react'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing namespace imports`, function() {
-      const code = `import R from 'react'`
-      const root = j(code)
-      addImports(root, statement`import * as React from 'react'`)
-      expect(root.toSource()).to.equal(`import R, * as React from 'react';`)
-    })
-    it(`leaves existing require defaults with commonjs: false untouched`, function() {
-      const code = `const bar = require('foo').default`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing require defaults with commonjs: false`, function() {
-      const code = `const {bar} = require('foo').default`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`)
-      expect(root.toSource()).to.equal(`import foo from "foo";
-${code}`)
-    })
-    it(`leaves existing destructured require defaults with commonjs: false untouched`, function() {
-      const code = `const {default: bar} = require('foo')`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`)
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing destructured require defaults with commonjs: false`, function() {
-      const code = `const {default: bar} = require('bar')`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`)
-      expect(root.toSource()).to.equal(`import foo from "foo";
-${code}`)
-    })
-    it(`leaves existing require defaults with commonjs: true untouched`, function() {
-      const code = `const bar = require('foo')`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`, { commonjs: true })
-      expect(root.toSource()).to.equal(code)
-    })
-    it(`adds missing require defaults with commonjs: true`, function() {
-      const code = `const bar = require('bar')`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`, { commonjs: true })
-      expect(root.toSource()).to.equal(`import foo from "foo";
-${code}`)
-    })
-    it(`avoids name conflicts`, function() {
-      const code = `import foo from 'foo'`
-      const root = j(code)
-      addImports(root, statement`import foo from 'bar'`)
-      expect(root.toSource()).to.equal(`${code}
-import foo1 from "bar";`)
-    })
-    it(`avoids name conflicts with import type`, function() {
-      const code = `// @flow
-import type foo from 'foo'`
-      const root = j(code)
-      const result = addImports(root, statement`import type foo from 'bar'`)
-      expect(result).to.deep.equal({ foo: 'foo1' })
-      expect(root.toSource()).to.equal(`${code}
-import type foo1 from "bar";`)
-    })
-    it(`avoids name conflicts with import type {}`, function() {
-      const code = `// @flow
-import type {foo} from 'foo'`
-      const root = j(code)
-      const result = addImports(root, statement`import type {foo} from 'bar'`)
-      expect(result).to.deep.equal({ foo: 'foo1' })
-      expect(root.toSource()).to.equal(`${code}
-import type { foo as foo1 } from "bar";`)
-    })
-    it(`avoids name conflicts with import {type}`, function() {
-      const code = `// @flow
-import {type foo} from 'foo'`
-      const root = j(code)
-      const result = addImports(root, statement`import {type foo} from 'bar'`)
-      expect(result).to.deep.equal({ foo: 'foo1' })
-      expect(root.toSource()).to.equal(`${code}
-import { type foo as foo1 } from "bar";`)
-    })
-    it(`doesn't break leading comments`, function() {
-      const code = `// @flow
-/* @flow-runtime enable */
-const bar = 'baz'`
-      const root = j(code)
-      addImports(root, statement`import foo from 'foo'`)
-      expect(root.toSource()).to.deep.equal(`// @flow
-/* @flow-runtime enable */
-import foo from "foo";
-
-const bar = 'baz';`)
-    })
-    it(`multiple statements and specifiers`, function() {
-      const code = `// @flow
-import {foo, type bar} from 'foo'
-import baz from 'baz'
-`
-      const root = j(code)
-      const result = addImports(root, [
-        statement`import type {bar, baz} from 'foo'`,
-        statement`import blah, {type qux} from 'qux'`,
-      ])
-      expect(result).to.deep.equal({
-        bar: 'bar',
-        baz: 'baz1',
-        blah: 'blah',
-        qux: 'qux',
-      })
-      expect(root.toSource()).to.equal(`// @flow
-import { foo, type bar, type baz as baz1 } from 'foo';
-import baz from 'baz'
-import blah, { type qux } from "qux";
-`)
-    })
-    describe(`bugs`, function() {
-      it(`import type { foo, type bar }`, function() {
-        const code = `// @flow
-import type { foo } from 'foo'`
-        const root = j(code)
-        const result = addImports(root, statement`import {type bar} from 'foo'`)
-        expect(result).to.deep.equal({ bar: 'bar' })
-        expect(root.toSource()).to.equal(`// @flow
-import type { foo, bar } from 'foo';`)
-      })
-      it(`import typeof { foo, type bar }`, function() {
-        const code = `// @flow
-import typeof { foo } from 'foo'`
-        const root = j(code)
-        const result = addImports(root, statement`import {type bar} from 'foo'`)
-        expect(result).to.deep.equal({ bar: 'bar' })
-        expect(root.toSource()).to.equal(`// @flow
-import { typeof foo, type bar } from 'foo';`)
-      })
-      it(`import type { foo, typeof bar }`, function() {
-        const code = `// @flow
-import type { foo } from 'foo'`
-        const root = j(code)
-        const result = addImports(
           root,
-          statement`import typeof {bar} from 'foo'`
+          typeof importsToAdd === 'string'
+            ? statement([importsToAdd])
+            : Array.isArray(importsToAdd)
+            ? importsToAdd.map(i =>
+                typeof i === 'string' ? statement([i]) : i
+              )
+            : importsToAdd
         )
-        expect(result).to.deep.equal({ bar: 'bar' })
-        expect(root.toSource()).to.equal(`// @flow
-import { type foo, typeof bar } from 'foo';`)
+      if (expectedError) expect(doAdd).to.throw(expectedError)
+      else {
+        const result = doAdd()
+        if (expectedCode)
+          expect(format(root.toSource())).to.equal(format(expectedCode))
+        if (expectedReturn) expect(result).to.deep.equal(expectedReturn)
+      }
+    }
+
+    describe(`addImports`, function() {
+      describe(`for require statement`, function() {
+        it(`throws if statement contains a non-require declarator`, function() {
+          testCase({
+            code: `import Baz from 'baz'`,
+            add: `const foo = require('baz'), bar = invalid(true)`,
+            expectedError: 'statement must be an import or require',
+          })
+        })
+        it(`leaves existing non-default imports with alias untouched`, function() {
+          testCase({
+            code: `import {foo as bar} from 'baz'`,
+            add: `const {foo: qux} = require('baz')`,
+            expectedCode: `import {foo as bar} from 'baz'`,
+            expectedReturn: { qux: 'bar' },
+          })
+        })
+        it(`adds missing non-default imports with alias`, function() {
+          testCase({
+            code: `import {blah as bar} from 'baz'`,
+            add: `const {foo: qux} = require('baz')`,
+            expectedCode: `
+              import {blah as bar} from 'baz'
+              const {foo: qux} = require('baz')
+            `,
+          })
+        })
+        it(`leaves existing non-default imports without alias untouched`, function() {
+          testCase({
+            code: `import {foo} from 'baz'`,
+            add: `const {foo: qux} = require('baz')`,
+            expectedCode: `import {foo} from 'baz'`,
+            expectedReturn: { qux: 'foo' },
+          })
+        })
+        it(`adds missing non-default imports without alias`, function() {
+          testCase({
+            code: `import {bar} from 'baz'`,
+            add: `const {foo: qux} = require('baz')`,
+            expectedCode: `
+              import {bar} from 'baz'
+              const {foo: qux} = require('baz')
+            `,
+          })
+        })
+        it(`merges destructuring`, function() {
+          testCase({
+            code: `const {foo} = require('bar')`,
+            add: `const {bar} = require('bar')`,
+            expectedCode: `const {foo, bar} = require('bar')`,
+          })
+        })
+        it(`leaves existing non-default requires without alias untouched`, function() {
+          testCase({
+            code: `const {foo} = require('baz')`,
+            add: `const {foo: qux} = require('baz')`,
+            expectedCode: `const {foo} = require('baz')`,
+            expectedReturn: { qux: 'foo' },
+          })
+        })
+        it(`adds missing non-default requires without alias`, function() {
+          testCase({
+            code: `const {bar} = require('baz')`,
+            add: `const {foo: qux} = require('baz')`,
+            expectedCode: `const {bar, foo: qux} = require('baz')`,
+            expectedReturn: { qux: 'qux' },
+          })
+        })
+        it(`leaves existing default requires untouched `, function() {
+          testCase({
+            code: `const foo = require('baz')`,
+            add: `const qux = require('baz')`,
+            expectedCode: `const foo = require('baz')`,
+            expectedReturn: { qux: 'foo' },
+          })
+        })
+        it(`adds missing default requires`, function() {
+          testCase({
+            code: `const foo = require('foo')`,
+            add: `const qux = require('baz')`,
+            expectedCode: `
+              const qux = require('baz')
+              const foo = require('foo')
+            `,
+          })
+        })
+        it(`avoids name conflicts`, function() {
+          testCase({
+            code: `const foo = require('foo')`,
+            add: `const foo = require('bar')`,
+            expectedCode: `
+              const foo1 = require('bar')
+              const foo = require('foo')
+            `,
+            expectedReturn: { foo: 'foo1' },
+          })
+        })
+        it(`avoids name conflicts with ObjectPattern`, function() {
+          testCase({
+            code: `const {foo} = require('foo')`,
+            add: `const {foo} = require('bar')`,
+            expectedCode: `
+              const {foo: foo1} = require('bar')
+              const {foo} = require('foo')
+            `,
+            expectedReturn: { foo: 'foo1' },
+          })
+        })
+        it(`adds separate declaration if init is MemberExpression`, function() {
+          testCase({
+            code: `const foo = require('foo').default`,
+            add: `const {bar} = require('foo')`,
+            expectedCode: `
+              const {bar} = require('foo')
+              const foo = require('foo').default
+            `,
+            expectedReturn: { bar: 'bar' },
+          })
+        })
+      })
+      describe(`for import statement`, function() {
+        it(`leaves existing default imports untouched`, function() {
+          testCase({
+            code: `import Baz from 'baz'`,
+            add: `import Foo from 'baz'`,
+            expectedCode: `import Baz from 'baz'`,
+            expectedReturn: { Foo: 'Baz' },
+          })
+        })
+        it(`adds missing default imports`, function() {
+          testCase({
+            code: `import {baz} from 'baz'`,
+            add: `import Foo from 'baz'`,
+            expectedCode: `import Foo, {baz} from 'baz'`,
+          })
+        })
+        it(`adds missing default imports case 2`, function() {
+          testCase({
+            code: `import bar from 'bar'`,
+            add: `import Foo from 'baz'`,
+            expectedCode: `
+              import bar from 'bar'
+              import Foo from 'baz'
+            `,
+          })
+        })
+        it(`leaves existing funky default imports untouched`, function() {
+          testCase({
+            code: `import {default as Baz} from 'baz'`,
+            add: `import {default as Foo} from 'baz'`,
+            expectedCode: `import {default as Baz} from 'baz'`,
+            expectedReturn: { Foo: 'Baz' },
+          })
+        })
+        it(`adds missing funky default imports`, function() {
+          testCase({
+            code: `import {baz} from 'baz'`,
+            add: `import {default as Foo} from 'baz'`,
+            expectedCode: `import {baz, default as Foo} from 'baz'`,
+            expectedReturn: { Foo: 'Foo' },
+          })
+        })
+        it(`adds missing funky default imports case 2`, function() {
+          testCase({
+            code: `import {bar} from 'bar'`,
+            add: `import {default as Foo} from 'baz'`,
+            expectedCode: `
+              import {bar} from 'bar'
+              import { default as Foo } from "baz"
+            `,
+          })
+        })
+        it(`leaves existing non-default import specifiers with aliases untouched`, function() {
+          testCase({
+            code: `import {foo as bar} from 'baz'`,
+            add: `import {foo as qux} from 'baz'`,
+            expectedCode: `import {foo as bar} from 'baz'`,
+          })
+        })
+        it(`adds missing non-default import specifiers with aliases`, function() {
+          testCase({
+            code: `import {qlob as bar} from 'baz'`,
+            add: `import {foo as qux} from 'baz'`,
+            expectedCode: `import { qlob as bar, foo as qux } from 'baz';`,
+          })
+        })
+        it(`adds missing non-default import specifiers with aliases case 2`, function() {
+          testCase({
+            code: `import {qlob as bar} from 'bar'`,
+            add: `import {foo as qux} from 'foo'`,
+            expectedCode: `
+              import {qlob as bar} from 'bar'
+              import {foo as qux} from 'foo'
+            `,
+          })
+        })
+        it(`leaves existing non-default import type specifiers with aliases untouched`, function() {
+          testCase({
+            code: `
+              import {foo as bar} from 'baz'
+              import type {foo as qlob} from 'baz'
+            `,
+            add: `import type {foo as qux} from 'baz'`,
+            expectedCode: `
+              import {foo as bar} from 'baz'
+              import type {foo as qlob} from 'baz'
+            `,
+          })
+        })
+        it(`adds missing non-default import type specifiers with aliases`, function() {
+          testCase({
+            code: `
+              import {foo as bar} from 'baz'
+              import type {glab as qlob} from 'baz'
+            `,
+            add: `import type {foo as qux} from 'baz'`,
+            expectedCode: `
+              import {foo as bar} from 'baz'
+              import type { glab as qlob, foo as qux } from 'baz'
+            `,
+          })
+        })
+        it(`adds missing non-default import type specifiers with aliases case 2`, function() {
+          testCase({
+            code: `
+              import {foo as bar} from 'baz'
+              import type { glab as qlob } from "qlob"
+            `,
+            add: `import type {foo as qux} from 'baz'`,
+            expectedCode: `
+              import { foo as bar, type foo as qux } from 'baz'
+              import type { glab as qlob } from "qlob"
+            `,
+          })
+        })
+        it(`converts import type {} to import {type} if necessary`, function() {
+          testCase({
+            code: `import type {foo as bar} from 'baz'`,
+            add: `import {foo as qux} from 'baz'`,
+            expectedCode: `import { type foo as bar, foo as qux } from 'baz'`,
+          })
+        })
+        it(`leaves existing non-default import specifiers without aliases untouched`, function() {
+          testCase({
+            code: `import {foo} from 'baz'`,
+            add: `import {foo} from 'baz'`,
+            expectedCode: `import {foo} from 'baz'`,
+          })
+        })
+        it(`adds missing non-default import specifiers without aliases`, function() {
+          testCase({
+            code: `import {baz} from 'baz'`,
+            add: `import {foo} from 'baz'`,
+            expectedCode: `import { baz, foo } from 'baz'`,
+          })
+        })
+        it(`adds missing non-default import specifiers without aliases case 2`, function() {
+          testCase({
+            code: `import {baz} from 'baz'`,
+            add: `import {foo} from 'foo'`,
+            expectedCode: `
+              import {baz} from 'baz'
+              import {foo} from 'foo'
+            `,
+          })
+        })
+        it(`leaves existing non-default require specifiers with aliases untouched`, function() {
+          testCase({
+            code: `const {foo: bar} = require('baz')`,
+            add: `import {foo} from 'baz'`,
+            expectedCode: `const {foo: bar} = require('baz')`,
+          })
+        })
+        it(`adds missing non-default require specifiers with aliases`, function() {
+          testCase({
+            code: `const {bar} = require('baz')`,
+            add: `import {foo} from 'baz'`,
+            expectedCode: `
+              import {foo} from 'baz'
+              const {bar} = require('baz')
+            `,
+          })
+        })
+        it(`leaves existing namespace imports untouched`, function() {
+          testCase({
+            code: `import * as React from 'react'`,
+            add: `import * as R from 'react'`,
+            expectedCode: `import * as React from 'react'`,
+          })
+        })
+        it(`adds missing namespace imports`, function() {
+          testCase({
+            code: `import R from 'react'`,
+            add: `import * as React from 'react'`,
+            expectedCode: `import R, * as React from 'react'`,
+          })
+        })
+        it(`leaves existing require defaults with commonjs: false untouched`, function() {
+          testCase({
+            code: `const bar = require('foo').default`,
+            add: `import foo from 'foo'`,
+            commonjs: false,
+            expectedCode: `const bar = require('foo').default`,
+          })
+        })
+        it(`adds missing require defaults with commonjs: false`, function() {
+          testCase({
+            code: `const {bar} = require('foo').default`,
+            add: `import foo from 'foo'`,
+            commonjs: false,
+            expectedCode: `
+              import foo from 'foo'
+              const {bar} = require('foo').default
+            `,
+          })
+        })
+        it(`leaves existing destructured require defaults with commonjs: false untouched`, function() {
+          testCase({
+            code: `const {default: bar} = require('foo')`,
+            add: `import foo from 'foo'`,
+            commonjs: false,
+            expectedCode: `const {default: bar} = require('foo')`,
+          })
+        })
+        it(`adds missing destructured require defaults with commonjs: false`, function() {
+          testCase({
+            code: `const {default: bar} = require('bar')`,
+            add: `import foo from 'foo'`,
+            commonjs: false,
+            expectedCode: `
+              import foo from 'foo'
+              const {default: bar} = require('bar')
+            `,
+          })
+        })
+        it(`leaves existing require defaults with commonjs: true untouched`, function() {
+          testCase({
+            code: `const bar = require('foo')`,
+            add: `import foo from 'foo'`,
+            commonjs: true,
+            expectedCode: `const bar = require('foo')`,
+          })
+        })
+        it(`adds missing require defaults with commonjs: true`, function() {
+          testCase({
+            code: `const bar = require('bar')`,
+            add: `import foo from 'foo'`,
+            commonjs: true,
+            expecctedCode: `
+              import foo from 'foo'
+              const bar = require('bar')
+            `,
+          })
+        })
+        it(`avoids name conflicts`, function() {
+          testCase({
+            code: `import foo from 'foo'`,
+            add: `import foo from 'bar'`,
+            expectedCode: `
+              import foo from 'foo'
+              import foo1 from 'bar'
+            `,
+          })
+        })
+        it(`avoids name conflicts with import type`, function() {
+          testCase({
+            code: `
+              // @flow
+              import type foo from 'foo'
+            `,
+            add: `import type foo from 'bar'`,
+            expectedCode: `
+              // @flow
+              import type foo from 'foo'
+              import type foo1 from 'bar'
+            `,
+            expectedReturn: { foo: 'foo1' },
+          })
+        })
+        it(`avoids name conflicts with import type {}`, function() {
+          testCase({
+            code: `
+              // @flow
+              import type {foo} from 'foo'
+            `,
+            add: `import type {foo} from 'bar'`,
+            expectedCode: `
+              // @flow
+              import type {foo} from 'foo'
+              import type {foo as foo1} from 'bar'
+            `,
+            expectedReturn: { foo: 'foo1' },
+          })
+        })
+        it(`avoids name conflicts with import {type}`, function() {
+          testCase({
+            code: `
+              // @flow
+              import {type foo} from 'foo'
+            `,
+            add: `import {type foo} from 'bar'`,
+            expectedCode: `
+              // @flow
+              import {type foo} from 'foo'
+              import {type foo as foo1} from 'bar'
+            `,
+            expectedReturn: { foo: 'foo1' },
+          })
+        })
+        it(`doesn't break leading comments`, function() {
+          testCase({
+            code: `
+              // @flow
+              /* @flow-runtime enable */
+              const bar = 'baz'
+            `,
+            add: `import foo from 'foo'`,
+            expectedCode: `
+              // @flow
+              /* @flow-runtime enable */
+              import foo from 'foo'
+              const bar = 'baz'
+            `,
+          })
+        })
+        it(`multiple statements and specifiers`, function() {
+          testCase({
+            code: `
+              // @flow
+              import {foo, type bar} from 'foo'
+              import baz from 'baz'
+            `,
+            add: [
+              `import type {bar, baz} from 'foo'`,
+              `import blah, {type qux} from 'qux'`,
+            ],
+            expectedCode: `
+              // @flow
+              import {foo, type bar, type baz as baz1} from 'foo'
+              import baz from 'baz'
+              import blah, {type qux} from 'qux'
+            `,
+            expectedReturn: {
+              bar: 'bar',
+              baz: 'baz1',
+              blah: 'blah',
+              qux: 'qux',
+            },
+          })
+        })
+        describe(`bugs`, function() {
+          it(`import type { foo, type bar }`, function() {
+            testCase({
+              code: `
+                // @flow
+                import type {foo} from 'foo'
+              `,
+              add: `import {type bar} from 'foo'`,
+              expectedCode: `
+                // @flow
+                import type {foo, bar} from 'foo'
+              `,
+              expectedReturn: { bar: 'bar' },
+            })
+          })
+          it(`import typeof { foo, type bar }`, function() {
+            testCase({
+              code: `
+                // @flow
+                import typeof {foo} from 'foo'
+              `,
+              add: `import {type bar} from 'foo'`,
+              expectedCode: `
+                // @flow
+                import {typeof foo, type bar} from 'foo'
+              `,
+              expectedReturn: { bar: 'bar' },
+            })
+          })
+          it(`import type { foo, typeof bar }`, function() {
+            testCase({
+              code: `
+                // @flow
+                import type {foo} from 'foo'
+              `,
+              add: `import typeof {bar} from 'foo'`,
+              expectedCode: `
+                // @flow
+                import {type foo, typeof bar} from 'foo'
+              `,
+              expectedReturn: { bar: 'bar' },
+            })
+          })
+        })
       })
     })
   })
-})
+}
