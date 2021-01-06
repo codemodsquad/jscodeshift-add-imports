@@ -5,7 +5,7 @@ const prettier = require('prettier')
 
 const addImports = require('..')
 
-for (const parser of ['babylon']) {
+for (const parser of ['babylon', 'ts']) {
   describe(`with parser: ${parser}`, function() {
     const j = jscodeshift.withParser(parser)
     const { statement } = j.template
@@ -241,52 +241,54 @@ for (const parser of ['babylon']) {
             `,
           })
         })
-        it(`leaves existing non-default import type specifiers with aliases untouched`, function() {
-          testCase({
-            code: `
+        if (parser !== 'ts') {
+          it(`leaves existing non-default import type specifiers with aliases untouched`, function() {
+            testCase({
+              code: `
               import {foo as bar} from 'baz'
               import type {foo as qlob} from 'baz'
             `,
-            add: `import type {foo as qux} from 'baz'`,
-            expectedCode: `
+              add: `import type {foo as qux} from 'baz'`,
+              expectedCode: `
               import {foo as bar} from 'baz'
               import type {foo as qlob} from 'baz'
             `,
+            })
           })
-        })
-        it(`adds missing non-default import type specifiers with aliases`, function() {
-          testCase({
-            code: `
+          it(`adds missing non-default import type specifiers with aliases`, function() {
+            testCase({
+              code: `
               import {foo as bar} from 'baz'
               import type {glab as qlob} from 'baz'
             `,
-            add: `import type {foo as qux} from 'baz'`,
-            expectedCode: `
+              add: `import type {foo as qux} from 'baz'`,
+              expectedCode: `
               import {foo as bar} from 'baz'
               import type { glab as qlob, foo as qux } from 'baz'
             `,
+            })
           })
-        })
-        it(`adds missing non-default import type specifiers with aliases case 2`, function() {
-          testCase({
-            code: `
+          it(`adds missing non-default import type specifiers with aliases case 2`, function() {
+            testCase({
+              code: `
               import {foo as bar} from 'baz'
               import type { glab as qlob } from "qlob"
             `,
-            add: `import type {foo as qux} from 'baz'`,
-            expectedCode: `
+              add: `import type {foo as qux} from 'baz'`,
+              expectedCode: `
               import { foo as bar, type foo as qux } from 'baz'
               import type { glab as qlob } from "qlob"
             `,
+            })
           })
-        })
-        it(`converts import type {} to import {type} if necessary`, function() {
-          testCase({
-            code: `import type {foo as bar} from 'baz'`,
-            add: `import {foo as qux} from 'baz'`,
-            expectedCode: `import { type foo as bar, foo as qux } from 'baz'`,
+          it(`converts import type {} to import {type} if necessary`, function() {
+            testCase({
+              code: `import type {foo as bar} from 'baz'`,
+              add: `import {foo as qux} from 'baz'`,
+              expectedCode: `import { type foo as bar, foo as qux } from 'baz'`,
+            })
           })
-        })
+        }
         it(`leaves existing non-default import specifiers without aliases untouched`, function() {
           testCase({
             code: `import {foo} from 'baz'`,
@@ -409,51 +411,53 @@ for (const parser of ['babylon']) {
             `,
           })
         })
-        it(`avoids name conflicts with import type`, function() {
-          testCase({
-            code: `
+        if (parser !== 'ts') {
+          it(`avoids name conflicts with import type`, function() {
+            testCase({
+              code: `
               // @flow
               import type foo from 'foo'
             `,
-            add: `import type foo from 'bar'`,
-            expectedCode: `
+              add: `import type foo from 'bar'`,
+              expectedCode: `
               // @flow
               import type foo from 'foo'
               import type foo1 from 'bar'
             `,
-            expectedReturn: { foo: 'foo1' },
+              expectedReturn: { foo: 'foo1' },
+            })
           })
-        })
-        it(`avoids name conflicts with import type {}`, function() {
-          testCase({
-            code: `
+          it(`avoids name conflicts with import type {}`, function() {
+            testCase({
+              code: `
               // @flow
               import type {foo} from 'foo'
             `,
-            add: `import type {foo} from 'bar'`,
-            expectedCode: `
+              add: `import type {foo} from 'bar'`,
+              expectedCode: `
               // @flow
               import type {foo} from 'foo'
               import type {foo as foo1} from 'bar'
             `,
-            expectedReturn: { foo: 'foo1' },
+              expectedReturn: { foo: 'foo1' },
+            })
           })
-        })
-        it(`avoids name conflicts with import {type}`, function() {
-          testCase({
-            code: `
+          it(`avoids name conflicts with import {type}`, function() {
+            testCase({
+              code: `
               // @flow
               import {type foo} from 'foo'
             `,
-            add: `import {type foo} from 'bar'`,
-            expectedCode: `
+              add: `import {type foo} from 'bar'`,
+              expectedCode: `
               // @flow
               import {type foo} from 'foo'
               import {type foo as foo1} from 'bar'
             `,
-            expectedReturn: { foo: 'foo1' },
+              expectedReturn: { foo: 'foo1' },
+            })
           })
-        })
+        }
         it(`doesn't break leading comments`, function() {
           testCase({
             code: `
@@ -474,18 +478,18 @@ for (const parser of ['babylon']) {
           testCase({
             code: `
               // @flow
-              import {foo, type bar} from 'foo'
+              import {foo, bar} from 'foo'
               import baz from 'baz'
             `,
             add: [
-              `import type {bar, baz} from 'foo'`,
-              `import blah, {type qux} from 'qux'`,
+              `import {bar, baz} from 'foo'`,
+              `import blah, {qux} from 'qux'`,
             ],
             expectedCode: `
               // @flow
-              import {foo, type bar, type baz as baz1} from 'foo'
+              import {foo, bar, baz as baz1} from 'foo'
               import baz from 'baz'
-              import blah, {type qux} from 'qux'
+              import blah, {qux} from 'qux'
             `,
             expectedReturn: {
               bar: 'bar',
@@ -495,49 +499,78 @@ for (const parser of ['babylon']) {
             },
           })
         })
-        describe(`bugs`, function() {
-          it(`import type { foo, type bar }`, function() {
+        if (parser !== 'ts') {
+          it(`multiple statements and specifiers with types`, function() {
             testCase({
               code: `
+              // @flow
+              import {foo, type bar} from 'foo'
+              import baz from 'baz'
+            `,
+              add: [
+                `import type {bar, baz} from 'foo'`,
+                `import blah, {type qux} from 'qux'`,
+              ],
+              expectedCode: `
+              // @flow
+              import {foo, type bar, type baz as baz1} from 'foo'
+              import baz from 'baz'
+              import blah, {type qux} from 'qux'
+            `,
+              expectedReturn: {
+                bar: 'bar',
+                baz: 'baz1',
+                blah: 'blah',
+                qux: 'qux',
+              },
+            })
+          })
+        }
+        describe(`bugs`, function() {
+          if (parser !== 'ts') {
+            it(`import type { foo, type bar }`, function() {
+              testCase({
+                code: `
                 // @flow
                 import type {foo} from 'foo'
               `,
-              add: `import {type bar} from 'foo'`,
-              expectedCode: `
+                add: `import {type bar} from 'foo'`,
+                expectedCode: `
                 // @flow
                 import type {foo, bar} from 'foo'
               `,
-              expectedReturn: { bar: 'bar' },
+                expectedReturn: { bar: 'bar' },
+              })
             })
-          })
-          it(`import typeof { foo, type bar }`, function() {
-            testCase({
-              code: `
+            it(`import typeof { foo, type bar }`, function() {
+              testCase({
+                code: `
                 // @flow
                 import typeof {foo} from 'foo'
               `,
-              add: `import {type bar} from 'foo'`,
-              expectedCode: `
+                add: `import {type bar} from 'foo'`,
+                expectedCode: `
                 // @flow
                 import {typeof foo, type bar} from 'foo'
               `,
-              expectedReturn: { bar: 'bar' },
+                expectedReturn: { bar: 'bar' },
+              })
             })
-          })
-          it(`import type { foo, typeof bar }`, function() {
-            testCase({
-              code: `
+            it(`import type { foo, typeof bar }`, function() {
+              testCase({
+                code: `
                 // @flow
                 import type {foo} from 'foo'
               `,
-              add: `import typeof {bar} from 'foo'`,
-              expectedCode: `
+                add: `import typeof {bar} from 'foo'`,
+                expectedCode: `
                 // @flow
                 import {type foo, typeof bar} from 'foo'
               `,
-              expectedReturn: { bar: 'bar' },
+                expectedReturn: { bar: 'bar' },
+              })
             })
-          })
+          }
         })
       })
     })

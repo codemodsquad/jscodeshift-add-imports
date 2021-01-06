@@ -30,7 +30,12 @@ module.exports = function addImports(root, _statements) {
     ? _id => {
         let id = _id
         let count = 1
-        while (babelScope.getBinding(id)) id = `${_id}${count++}`
+        while (
+          babelScope.getBinding(id) ||
+          astTypeScope.lookup(id) ||
+          astTypeScope.lookupType(id)
+        )
+          id = `${_id}${count++}`
         return id
       }
     : _id => {
