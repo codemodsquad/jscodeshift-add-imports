@@ -2,16 +2,23 @@ const j = require('jscodeshift').withParser('babylon')
 const findImports = require('jscodeshift-find-imports')
 const traverse = require('@babel/traverse').default
 
-const firstPath = c => c.at(0).paths()[0]
-const lastPath = c => c.at(-1).paths()[0]
-const firstNode = c => c.at(0).nodes()[0]
-const lastNode = c => c.at(-1).nodes()[0]
+const firstPath = (c) => c.at(0).paths()[0]
+const lastPath = (c) => c.at(-1).paths()[0]
+const firstNode = (c) => c.at(0).nodes()[0]
+const lastNode = (c) => c.at(-1).nodes()[0]
 
 module.exports = function addImports(root, _statements) {
   const found = findImports(root, _statements)
   for (const name in found) {
-    found[name] = found[name].name
+    if (found[name].type === 'Identifier') found[name] = found[name].name
+    else delete found[name]
   }
+
+  const definitelyFlow =
+    root.find(j.Flow).size() > 0 ||
+    root
+      .find(j.Comment, (node) => /^@flow(\b|$)/.test(node.value.trim()))
+      .size() > 0
 
   let babelScope
   let astTypeScope = firstPath(root.find(j.Program)).scope.getGlobalScope()
@@ -27,7 +34,7 @@ module.exports = function addImports(root, _statements) {
   const statements = Array.isArray(_statements) ? _statements : [_statements]
 
   const preventNameConflict = babelScope
-    ? _id => {
+    ? (_id) => {
         let id = _id
         let count = 1
         while (
@@ -38,7 +45,7 @@ module.exports = function addImports(root, _statements) {
           id = `${_id}${count++}`
         return id
       }
-    : _id => {
+    : (_id) => {
         let id = _id
         let count = 1
         while (astTypeScope.lookup(id) || astTypeScope.lookupType(id)) {
@@ -47,11 +54,13 @@ module.exports = function addImports(root, _statements) {
         return id
       }
 
-  statements.forEach(statement => {
+  statements.forEach((statement) => {
     if (statement.type === 'ImportDeclaration') {
       const { importKind } = statement
       const source = { value: statement.source.value }
-      let existing = root.find(j.ImportDeclaration, { source })
+      const filter = { source }
+      if (!definitelyFlow) filter.importKind = importKind
+      let existing = root.find(j.ImportDeclaration, filter)
       for (let specifier of statement.specifiers) {
         if (found[specifier.local.name]) continue
         const name = preventNameConflict(specifier.local.name)
@@ -100,7 +109,7 @@ module.exports = function addImports(root, _statements) {
         }
       }
     } else if (statement.type === 'VariableDeclaration') {
-      statement.declarations.forEach(declarator => {
+      statement.declarations.forEach((declarator) => {
         let existing
         if (declarator.init.type === 'CallExpression') {
           existing = root.find(j.VariableDeclarator, {
@@ -162,16 +171,13 @@ module.exports = function addImports(root, _statements) {
 }
 
 function insertProgramStatement(root, ...statements) {
-  const program = root
-    .find(j.Program)
-    .at(0)
-    .nodes()[0]
+  const program = root.find(j.Program).at(0).nodes()[0]
   const firstProgramStatement = program.body[0]
   if (firstProgramStatement) {
     for (let field of ['comments', 'leadingComments']) {
       const comments = firstProgramStatement[field]
       if (comments) {
-        comments.forEach(c => {
+        comments.forEach((c) => {
           delete c.loc
           delete c.start
           delete c.end
