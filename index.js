@@ -8,7 +8,11 @@ const firstNode = (c) => c.at(0).nodes()[0]
 const lastNode = (c) => c.at(-1).nodes()[0]
 
 module.exports = function addImports(root, _statements) {
-  const found = findImports(root, _statements)
+  const statements = Array.isArray(_statements) ? _statements : [_statements]
+  const found = findImports(
+    root,
+    statements.filter((s) => s.type !== 'ExpressionStatement')
+  )
   for (const name in found) {
     if (found[name].type === 'Identifier') found[name] = found[name].name
     else delete found[name]
@@ -31,7 +35,6 @@ module.exports = function addImports(root, _statements) {
   } catch (error) {
     // ignore
   }
-  const statements = Array.isArray(_statements) ? _statements : [_statements]
 
   const preventNameConflict = babelScope
     ? (_id) => {
@@ -54,12 +57,18 @@ module.exports = function addImports(root, _statements) {
         return id
       }
 
-  statements.forEach((statement) => {
+  for (const statement of statements) {
     if (statement.type === 'ImportDeclaration') {
       const { importKind } = statement
       const source = { value: statement.source.value }
       const filter = { source }
       if (!definitelyFlow) filter.importKind = importKind
+      if (!statement.specifiers.length) {
+        if (!isSourceImported(root, statement.source.value)) {
+          addStatements(root, statement)
+        }
+        continue
+      }
       let existing = root.find(j.ImportDeclaration, filter)
       for (let specifier of statement.specifiers) {
         if (found[specifier.local.name]) continue
@@ -99,12 +108,7 @@ module.exports = function addImports(root, _statements) {
             j.stringLiteral(statement.source.value),
             importKind
           )
-          const allImports = root.find(j.ImportDeclaration)
-          if (allImports.size()) {
-            lastPath(allImports).insertAfter(newDeclaration)
-          } else {
-            insertProgramStatement(root, newDeclaration)
-          }
+          addStatements(root, newDeclaration)
           existing = root.find(j.ImportDeclaration, { source })
         }
       }
@@ -118,6 +122,7 @@ module.exports = function addImports(root, _statements) {
             },
             init: {
               type: 'CallExpression',
+              callee: { type: 'Identifier', name: 'require' },
               arguments: [{ value: declarator.init.arguments[0].value }],
             },
           })
@@ -139,12 +144,7 @@ module.exports = function addImports(root, _statements) {
               const newDeclaration = j.variableDeclaration('const', [
                 j.variableDeclarator(j.objectPattern([prop]), declarator.init),
               ])
-              const allImports = root.find(j.ImportDeclaration)
-              if (allImports.size()) {
-                lastPath(allImports).insertAfter(newDeclaration)
-              } else {
-                insertProgramStatement(root, newDeclaration)
-              }
+              addStatements(root, newDeclaration)
             }
           }
         } else if (declarator.id.type === 'Identifier') {
@@ -155,19 +155,84 @@ module.exports = function addImports(root, _statements) {
             const newDeclaration = j.variableDeclaration('const', [
               j.variableDeclarator(declarator.id, declarator.init),
             ])
-            const allImports = root.find(j.ImportDeclaration)
-            if (allImports.size()) {
-              lastPath(allImports).insertAfter(newDeclaration)
-            } else {
-              insertProgramStatement(root, newDeclaration)
-            }
+            addStatements(root, newDeclaration)
           }
         }
       })
+    } else if (statement.type === 'ExpressionStatement') {
+      if (isNodeRequireCall(statement.expression)) {
+        if (!isSourceImported(root, getSource(statement.expression))) {
+          addStatements(root, statement)
+        }
+      } else {
+        throw new Error(`statement must be an import or require`)
+      }
     }
-  })
+  }
 
   return found
+}
+
+function findTopLevelImports(root, predicate = () => true) {
+  const program = root.find(j.Program).at(0).paths()[0]
+  if (!program) return []
+  return j(
+    program
+      .get('body')
+      .filter((p) => p.node.type === 'ImportDeclaration' && predicate(p))
+  )
+}
+
+function isNodeRequireCall(node) {
+  return (
+    node.type === 'CallExpression' &&
+    node.callee.type === 'Identifier' &&
+    node.callee.name === 'require' &&
+    node.arguments[0] &&
+    (node.arguments[0].type === 'StringLiteral' ||
+      node.arguments[0].type === 'Literal')
+  )
+}
+
+function isPathRequireCall(path) {
+  return isNodeRequireCall(path.node) && !path.scope.lookup('require')
+}
+
+function findTopLevelRequires(root, predicate = () => true) {
+  const paths = []
+  const program = root.find(j.Program).at(0).paths()[0]
+  if (program) {
+    program.get('body').each((path) => {
+      if (path.node.type === 'ExpressionStatement') {
+        const expression = path.get('expression')
+        if (isPathRequireCall(expression) && predicate(expression))
+          paths.push(expression)
+      } else if (path.node.type === 'VariableDeclaration') {
+        for (const declaration of path.get('declarations')) {
+          const init = declaration.get('init')
+          if (isPathRequireCall(init) && predicate(init)) paths.push(init)
+        }
+      }
+    })
+  }
+  return j(paths)
+}
+
+function getSource(node) {
+  if (node.type === 'ImportDeclaration') return node.source.value
+  if (isNodeRequireCall(node)) {
+    const arg = node.arguments[0]
+    if (arg && (arg.type === 'Literal' || arg.type === 'StringLiteral'))
+      return arg.value
+  }
+}
+
+function isSourceImported(root, source) {
+  const hasSource = (p) => getSource(p.node) === source
+  return (
+    findTopLevelImports(root, hasSource).size() ||
+    findTopLevelRequires(root, hasSource).size()
+  )
 }
 
 function insertProgramStatement(root, ...statements) {
@@ -192,4 +257,12 @@ function insertProgramStatement(root, ...statements) {
     }
   }
   program.body.unshift(...statements)
+}
+
+function addStatements(root, ...statements) {
+  const imports = findTopLevelImports(root)
+  if (imports.size()) {
+    const last = lastPath(imports)
+    for (const statement of statements.reverse()) last.insertAfter(statement)
+  } else insertProgramStatement(root, ...statements)
 }

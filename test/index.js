@@ -8,7 +8,7 @@ const addImports = require('..')
 for (const parser of ['babylon', 'ts']) {
   describe(`with parser: ${parser}`, function () {
     const j = jscodeshift.withParser(parser)
-    const { statement } = j.template
+    const { statement, statements } = j.template
 
     const format = (code) =>
       prettier
@@ -29,7 +29,7 @@ for (const parser of ['babylon', 'ts']) {
         addImports(
           root,
           typeof importsToAdd === 'string'
-            ? statement([importsToAdd])
+            ? statements([importsToAdd])
             : Array.isArray(importsToAdd)
             ? importsToAdd.map((i) =>
                 typeof i === 'string' ? statement([i]) : i
@@ -51,6 +51,13 @@ for (const parser of ['babylon', 'ts']) {
           testCase({
             code: `import Baz from 'baz'`,
             add: `const foo = require('baz'), bar = invalid(true)`,
+            expectedError: 'statement must be an import or require',
+          })
+        })
+        it(`throws if statement is an ExpressionStatement that's not a require`, function () {
+          testCase({
+            code: `import Baz from 'baz'`,
+            add: `1 + 2`,
             expectedError: 'statement must be an import or require',
           })
         })
@@ -550,6 +557,88 @@ for (const parser of ['babylon', 'ts']) {
           })
         })
         describe(`bugs`, function () {
+          it(`adding side-effect only imports`, async function () {
+            testCase({
+              code: '',
+              add: `import 'foo'`,
+              expectedCode: `import 'foo'`,
+            })
+            testCase({
+              code: `
+                import 'bar'
+              `,
+              add: `import 'foo'`,
+              expectedCode: `
+                import 'bar'
+                import 'foo'
+              `,
+            })
+          })
+          it(`doesn't re-add side-effect only import`, async function () {
+            testCase({
+              code: `import 'foo'`,
+              add: `import 'foo'`,
+              expectedCode: `import 'foo'`,
+            })
+            testCase({
+              code: `require('foo')`,
+              add: `import 'foo'`,
+              expectedCode: `require('foo')`,
+            })
+            testCase({
+              code: `require('foo')`,
+              add: `
+                import 'foo'
+                import 'bar'
+              `,
+              expectedCode: `
+                import 'bar'
+                require('foo')
+              `,
+            })
+          })
+          it(`adding side-effect only requires`, async function () {
+            testCase({
+              code: '',
+              add: `require('foo')`,
+              expectedCode: `require('foo')`,
+            })
+            testCase({
+              code: `
+                require('bar')
+              `,
+              add: `require('foo')`,
+              expectedCode: `
+                require('foo')
+                require('bar')
+              `,
+            })
+          })
+          it(`doesn't re-add side-effect only require`, async function () {
+            testCase({
+              code: `require('foo')`,
+              add: `require('foo')`,
+              expectedCode: `require('foo')`,
+            })
+            testCase({
+              code: `import 'foo'`,
+              add: `require('foo')`,
+              expectedCode: `import 'foo'`,
+            })
+            testCase({
+              code: `
+                require('bar')
+              `,
+              add: `
+                require('foo')
+                require('bar')
+              `,
+              expectedCode: `
+                require('foo')
+                require('bar')
+              `,
+            })
+          })
           if (parser !== 'ts') {
             it(`import type { foo, type bar }`, function () {
               testCase({

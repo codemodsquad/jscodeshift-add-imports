@@ -1,0 +1,12 @@
+{
+  "configurations": [
+    {
+      "name": "debug tests",
+      "request": "launch",
+      "runtimeArgs": ["test:debug"],
+      "runtimeExecutable": "yarn",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "pwa-node"
+    }
+  ]
+}
