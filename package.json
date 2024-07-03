@@ -112,6 +112,6 @@
     "jscodeshift-find-imports": "^2.0.2"
   },
   "peerDependencies": {
-    "jscodeshift": "^0.7.0"
+    "jscodeshift": ">=0.7 <1"
   }
 }
